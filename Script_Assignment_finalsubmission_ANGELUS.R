@@ -250,5 +250,56 @@ ggplot(df.BIN.richness, aes(x = Metric, y = Value, fill = Metric)) +
     x = NULL
   )
 
+# c) Alpha diversity ------------
+# Rarefaction and Species Accumulation Curve helped check the quality and completeness of our data. We need to understand the true diversity pattern across countries, alpha-diversity. Shannon and Simpson diversity will calculate how diverse each country is and how BINs are evenly distributed. This will show a clear diversity beyond simple species count. Additionally, simpson diversity will demonstrate how balanced species representation is. 
+
+# We need a dataset containing two variables: countries, BINs
+
+# Let's check some statistics
+table(dfBINs.by.country$country_ocean)
+unique(dfBINs.by.country$bin_uri)
+length(unique(dfBINs.by.country$bin_uri))
+
+# Shannon index. will use BINs as a molecukar proxy of species. The argument .groups = "drop" tells R not to keep grouping after summarization.
+
+dfBINs.by.country_diversity <- dfBINs.by.country %>% 
+  filter(!is.na(country_ocean) & !is.na(bin_uri)) %>% 
+  group_by(country_ocean, bin_uri) %>% 
+  summarize(count = n(), .groups = "drop") %>% 
+  group_by(country_ocean) %>% 
+  summarize(
+    shannon = diversity(count, index = "shannon"),
+    simpson = diversity(count, index = "simpson")) %>%
+  arrange(desc(shannon)) %>%
+  print()
+#==> Findings show that both shannon and simpson indices reveal Canidae diversity is geographically uneven with a high diversity concentrated in a few countries, while many countries remain poorly represented. 
+
+# Let's visualize the shannon diversity
+ggplot(data = dfBINs.by.country_diversity) +
+  geom_point(mapping = aes(x = fct_reorder(country_ocean, shannon), y = shannon),  size = 3) +
+  labs(title = "Shannon diversity of Canidae across countries", x = "Country sampled", y = "Shannon Diversity Index ") +
+  coord_flip()
+#==> The pattern of shannon diversity underscores the need for a broader geographic sampling for an accurate estimate of Canidae diversity and distribution. Many country with o diversity have very few or only 1 record in BOLD.
+
+# Let's visualize both
+# Reshape the diversity data using pivot_long(), because ggplot2 needs data in long format to make group comparison
+df.diversity.plot <- dfBINs.by.country_diversity %>% 
+  pivot_longer(cols = c(shannon, simpson),
+               names_to = "Index",
+               values_to = "Diversity")
+
+# Let's plot a comparison between shannon and simpson diversity acros countries
+ggplot(df.diversity.plot, aes(x = reorder(country_ocean, -Diversity),
+                              y = Diversity, fill = Index)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  scale_fill_manual(values = c("steelblue", "tomato"),
+                    name = "Alpha-diversity index") +
+  labs(title = "Shannon and Simpson diversity by country",
+       subtitle = "Bars show average alpha diversity per country",
+       x = "Country", y = "Diversity value") +
+  coord_flip()
+# The plot show clearly many countries with 0 diversity (Shannon and Simpson). You can show the top 10 countries but what is needed here is a global picture of alpha-diversity for each country. You can conclude that Canidae diversity is unevenly distributed globally.
+
+  
 
 ####END
