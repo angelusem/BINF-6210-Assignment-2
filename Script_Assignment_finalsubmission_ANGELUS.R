@@ -165,44 +165,59 @@ country_rec_counts %>%
   )
 
 ##Addressing Part 2 of Research Question: Using the BINs as a molecular proxy for species to explore the completeness of sampling in the genus Canidae for the DNA barcoding campaign;
-# a.) rarefaction curve----
-#b.) species accumulation curve----
 
-# a.) examines sampling effort vs. observed diversity
+### This question seems to be different from the one asked in the introduction. Let's see if we can get responses to both questions.
+
+# a) Rarefaction curve----
+# b) Species accumulation curve----
+
+# a) Examines sampling effort vs. observed diversity
 
 # Grouping the data by BIN and counting the number of records in each BIN
 dfCount.by.BIN <- dfBOLD.sub %>%
   group_by(bin_uri) %>%
   count(bin_uri)
 
-# getting the data into the community data object format
+# Getting the data into the community data object format. 
 dfBINs.spread <- pivot_wider(data = dfCount.by.BIN, names_from = bin_uri, values_from = n)
-# plotting a rarefaction curve by randomly sampling the individuals available in the total data set, at various levels of completeness (shown on the x-axis).
-x <- rarecurve(dfBINs.spread, xlab = "Individuals Barcoded", ylab = "BIN Richness")
 
-# b.) "As we add countries, do we add a lot of new BINs? i.e. Do unique BINs tend to be added as we sample additional countries?"
+# plotting a rarefaction curve by randomly sampling the individuals available in the total data set, at various levels of completeness (shown on the x-axis).
+x <- rarecurve(dfBINs.spread, 
+               main = "Rarefaction curve illustrating BIN richnes in Canidae", 
+               xlab = "Individuals Barcoded", 
+               ylab = "BIN Richness")
+### The curve shows a steep initial increase in BIN richness with increasing individual sampling. Importantly, the continued upward trend suggests that additional sampling may reveal some unsampled BINs.
+
+# b) "As we add countries, do we add a lot of new BINs? i.e. Do unique BINs tend to be added as we sample additional countries?"
 
 dfBINs.by.country <- dfBOLD_no_unrec %>%
   group_by(country_ocean, bin_uri) %>%
   count(bin_uri)
 # removing the rows where country is NA, and BIN is NA as such records do not contribute to answering our question.
+
 dfBINs.by.country.na.rm <- dfBINs.by.country %>%
   filter(!is.na(country_ocean)) %>%
   filter(!is.na(bin_uri))
 
-
 # Reshaping data to match desired data type and formatting once more
 dfBINs.spread.by.country <- pivot_wider(data = dfBINs.by.country.na.rm, names_from = bin_uri, values_from = n)
+
 # turn nas to 0 but are there any nas?
+# You can first check if there is any missing value
+any(is.na(dfBINs.spread.by.country)) #==> This returns TRUE
+
+# Turns NAs to 0
 dfBINs.spread.by.country[is.na(dfBINs.spread.by.country)] <- 0
 
 # setting the rownames as country, rather than having country as a data column. 
 dfBINs.spread.by.country <- dfBINs.spread.by.country %>%
   remove_rownames() %>%
   column_to_rownames(var = "country_ocean")
-# plotting curve
+
+# Let's build the Species Acculmulation Curve
 AccumCurve <- specaccum(dfBINs.spread.by.country)
 
+# plotting the curve
 plot(AccumCurve, xlab = "Countries Sampled", ylab = "BIN Richness", ci.type = "poly", col = "red", lwd = 2, ci.lty = 0, ci.col = "yellow")
 
 AccumCurveboxpl <- specaccum(dfBINs.spread.by.country, "random")
@@ -213,9 +228,27 @@ boxplot(AccumCurveboxpl, col = "orange", add = TRUE, pch = "+")
 
 pool_estimate <- specpool(dfBINs.spread.by.country)
 pool_estimate
+#==> Chao estimate predicts 39 BINs, while observed BINs are 24. So, approximately 15 more BINs still need to be detected.
+
 completeness <- pool_estimate$Species / pool_estimate$chao * 100
 completeness
+#==> This returns a moderate coverage ~62%. 
 
+### Let's visualize these findings
+# Create data to be visualized
+df.BIN.richness <- data_frame(
+  Metric = c("Observed BINs", "Estimated BINs"),
+  Value = c(pool_estimate$Species, pool_estimate$chao)
+)
+
+# Let's make a plot
+ggplot(df.BIN.richness, aes(x = Metric, y = Value, fill = Metric)) +
+  geom_bar(stat = "identity", width = 0.6) +
+  labs(
+    title = "Observed vs. Estimated BIN richness in Canidae samples",
+    y = "BIN richness",
+    x = NULL
+  )
 
 
 ####END
