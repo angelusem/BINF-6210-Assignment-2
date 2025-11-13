@@ -12,7 +12,7 @@
 ### Research Question: "How well-sampled is Canidae across countries, and what can the relationship between BINs and location tell us about species diversity and data coverage?”
 ## Broken down:
 #Part 1: how well sampled is Canidae across countries
-#Part 2: what can the relationship between BINs and location tell us about species diversity and data coverage?
+#Part 2: How does the relationship between BINs and location reveal patterns of species diversity and data coverage?
 
 ##packages used----
 library(tidyverse)
@@ -31,7 +31,7 @@ dfBOLD <- read_tsv(file = "https://portal.boldsystems.org/api/documents/eAErSayw
 write_tsv(dfBOLD, "Canidae_BOLD_data.tsv")
 #or from file submitted
 getwd()
-dfBOLD <- read_tsv(file = "../data/Canidae_BOLD_data.tsv")
+dfBOLD <- read_tsv(file = "../BINF-6210-Assignment-2/Canidae_BOLD_data.tsv")
 
 ### 1. Exploratory analysis
 # Quick look at my dataset:
@@ -48,101 +48,176 @@ length(dfBOLD$coord)
 table(is.na(dfBOLD$coord))
 percent_coord_usable <- 1258 / (1258 + 3577) * 100
 percent_coord_usable
+### If you want to mean % of number of non-missing coordinates, the calculation should be different. 3577 is the number of total rows. So we can try this code instead:
+percent_coord_usable2 <- 1258 / 3577 * 100
+percent_coord_usable2
+#==> It will returns 35% instead of 26%
+
 # country/ocean data
 sum(!is.na(dfBOLD$`country/ocean`))
 percent_country_usable <- 2367 / (2367 + 3577) * 100
 percent_country_usable
+# Same comment as above
+percent_country_usable2 <- 2367 / 3577 * 100
+percent_country_usable2
+#==> This returns 66% instead of 40%
+
 # BIN data 
 sum(!is.na(dfBOLD$bin_uri))
 # Same as # of country/ocean but does that mean every country has a BIN?
+
 dfBOLD.expl <- dfBOLD[, c("bin_uri", "country/ocean", "coord")]
 # Finding: not the case.
 
+### I think this code create a new data frame with only 3 columns (bin_uri, country/ocean, and coors). To answer your question if each of the 2367 country/ocean has a BIN, we can try these 4 following codes:
+
+# Let's first change country/ocean to country_ocean
+dfBOLD <- dfBOLD %>% 
+  rename(country_ocean = `country/ocean`)
+
+# 1) Make a data frame of only 2 columns (country_ocean and bin_uri), because we already knew that 2367 non-missinng values and our question is focused on 2 variables with same lenght.
+dfBOLD.expl2 <- dfBOLD[, c("country_ocean", "bin_uri")]
+
+#2) Let's check how many rows are complete for both two viriables
+sum(complete.cases(dfBOLD.expl2))
+#==> This returns 1356 different from 2367
+
+# 3) We can go further make a clean data frame after removing rows with any missing values
+dfBOLD.expl2.clean <- dfBOLD.expl2[complete.cases(dfBOLD.expl2), ]
+dfBOLD.expl2.clean
+#==> This returns a data frame of 1356 complete rows of 2 variables (bin_uri and country_ocean)
+# Check whether any remaining missing values in this new dataset
+any(is.na(dfBOLD.expl2.clean))
+#==> Returns FALSE
+
+# 4) We can finally check if all rows, in our clean data frame, are complete. all() will check if every row in the data frame is complete and return TRUE or FALSE. This is different from sum() which return the number (how many?).
+all(complete.cases(dfBOLD.expl2.clean))
+#==> TRUE
+#==> To answer if the 2367 country_ocean have BIN is not. Only 1356 country_oceas have BINs.
+
+# Before we make the next conclusion, we can check the number of complete cases for the 3 variables (bin_uri, country_ocean, and coors)
+sum(complete.cases(dfBOLD.expl))
+#==> 1160 complete rows of 3 variables (bin_uri, country_ocean, and coors)
+
 
 # Since there are more data points for country/ocean than there is for coord, proceeding  with exploration based off bin_uri and country/ocean.
+
+### The new lines of code I added demonstrated that coordinate variables can't be neglected because it contains 1160 rows with non-missing variables. So there is no big diffeferent when considering only country_ocean and bin_uri, which have 1356 complete observations.
 
 ####VISUALIZATION----
 
 ##2. Analysis aimed at answering Part 1 of Research Question: 
 dfBOLD.sub <- dfBOLD %>%
-  select(bin_uri, `country/ocean`) %>%
-  filter(!is.na(`country/ocean`), !is.na(bin_uri)) # subsetted my columns of interest
+  select(bin_uri, country_ocean) %>%
+  filter(!is.na(country_ocean), !is.na(bin_uri)) # subsetted my columns of interest
 
+#removed the entries that corresponded to "unrecoverable" in my dataset since they would not contribute to analyses
 dfBOLD.sub
-dfBOLD_no_unrec <- subset(dfBOLD.sub, `country/ocean` != "Unrecoverable") #removed the entries that corresponded to "unrecoverable" in my dataset since they would not contribute to analyses
+dfBOLD_no_unrec <- subset(dfBOLD.sub, country_ocean != "Unrecoverable") 
 dfBOLD_no_unrec #check
 
 # looking at count of BIN records per country
-my.table <- table(dfBOLD_no_unrec$"country/ocean")
+my.table <- table(dfBOLD_no_unrec$"country_ocean")
 my.table
 mean(my.table)
 median(my.table)
 max(my.table)
 nrow(my.table)
+#==> Mean = 19.3, meadian = 4.5, max = 227. These statistics indicate that many countries have a low number of BINs. So with no additoon tests, we can conclude that that these data are not normally distributed (mean != median).
 
-#Plotting graphs where counts of records is along the x axis and along the y-axis, we have the frequency (i.e. number of countries) with that amount of records.
+#Plotting graphs where counts of BIN records is along the x axis and along the y-axis, we have the number of countries with that amount of records. This shows how data are strongly skewed with most countries having very low number of BINS, while very few contries have a larger number of BINs.
 
-hist(x = my.table, xlab = "Count of BOLD Records per Country", ylab = "Frequency (No. Countries", breaks = c(seq(0, 300, by = 50)))#showing many countries have a count of Canidae records on BOLD in the bin 0-50 
-hist(x = my.table, xlab = "Count of BOLD Records per Country", ylab = "Frequency (No. Countries", breaks = c(seq(0, 250, by = 10))) #showing many countries have a count of Canidae records on BOLD in the bin 0-10
+hist(x = my.table, 
+     main = "BIN distribution across countries",
+     xlab = "Number of BINs per Country", 
+     ylab = "Number Countries", 
+     breaks = c(seq(0, 300, by = 50)))#showing many countries have a count of Canidae records on BOLD in the bin 0-50 
+### This histogram gives an important picture of BIN distribution across countries. We can edit labels to make it more informative. Let maybe call the x-axis number of BINs; y-axis, number of countries; and  
+hist(x = my.table, 
+     main = "BIN distribution across countries", 
+     xlab = "Number of BINs per Country", 
+     ylab = "Number Countries", 
+     breaks = c(seq(0, 250, by = 10))) #showing many countries have a count of Canidae records on BOLD in the bin 0-10
 
-#there seems to be many countries with a low count of records (in the zero to 50 range)for Canidae-> sampling bias? warrants further investigation.
+# There seems to be many countries with a low count of BIN records (in the zero to 50 range)for Canidae-> sampling bias? warrants further investigation.
 
-#trying to visualize the counts of BOLD records for each country more: 
+# Trying to visualize the counts of BOLD BIN records for each country more: 
 
-sort(table(dfBOLD.sub$"country/ocean"), decreasing = TRUE)
-sort(table(dfBOLD.sub$"country/ocean"), decreasing = TRUE)[1:10]
-plot(sort(table(dfBOLD.sub$"country/ocean"), decreasing = TRUE)[1:5]) #gives a line plot of the top 5 countries with the most BOLD records
+sort(table(dfBOLD.sub$country_ocean), decreasing = TRUE)
+sort(table(dfBOLD.sub$country_ocean), decreasing = TRUE)[1:10]
+plot(sort(table(dfBOLD.sub$country_ocean), decreasing = TRUE)[1:5], 
+     main = "BIN distribution across the top 5 countries", 
+     xlab = "Countries", 
+     ylab = "Number of BINs") #gives a line plot of the top 5 countries with the most BOLD records. I think that ggplot could be better for a clear viaualization.
 
-# to visualize the top 10 countries, in a more appealing manner
+# to visualize the top 10 countries, in a more appealing manner using ggplot. 
 country_rec_counts <- dfBOLD.sub %>%
-  count(`country/ocean`, sort = TRUE)
+  count(country_ocean, sort = TRUE)
 
 country_rec_counts %>%
   slice_max(n, n = 10) %>%
-  ggplot(aes(x = reorder(`country/ocean`, n), y = n)) +
+  ggplot(aes(x = reorder(country_ocean, n), y = n)) +
   geom_col(fill = "hotpink") +
   coord_flip() +
   labs(
     title = "Top 10 Countries for Canidae Records in BOLD",
-    x = "Country", y = "Record count"
+    x = "Country", y = "Number of BINs"
   )
 
 ##Addressing Part 2 of Research Question: Using the BINs as a molecular proxy for species to explore the completeness of sampling in the genus Canidae for the DNA barcoding campaign;
-# a.) rarefaction curve----
-#b.) species accumulation curve----
 
-# a.) examines sampling effort vs. observed diversity
+### This question seems to be different from the one asked in the introduction. Let's see if we can get responses to both questions.
+
+# a) Rarefaction curve----
+# b) Species accumulation curve----
+
+# a) Examines sampling effort vs. observed diversity
+
 # Grouping the data by BIN and counting the number of records in each BIN
 dfCount.by.BIN <- dfBOLD.sub %>%
   group_by(bin_uri) %>%
   count(bin_uri)
-# getting the data into the community data object format
-dfBINs.spread <- pivot_wider(data = dfCount.by.BIN, names_from = bin_uri, values_from = n)
-# plotting a rarefaction curve by randomly sampling the individuals available in the total data set, at various levels of completeness (shown on the x-axis).
-x <- rarecurve(dfBINs.spread, xlab = "Individuals Barcoded", ylab = "BIN Richness")
 
-# b.) "As we add countries, do we add a lot of new BINs? i.e. Do unique BINs tend to be added as we sample additional countries?"
+# Getting the data into the community data object format. 
+dfBINs.spread <- pivot_wider(data = dfCount.by.BIN, names_from = bin_uri, values_from = n)
+
+# plotting a rarefaction curve by randomly sampling the individuals available in the total data set, at various levels of completeness (shown on the x-axis).
+x <- rarecurve(dfBINs.spread, 
+               main = "Rarefaction curve illustrating BIN richnes in Canidae", 
+               xlab = "Individuals Barcoded", 
+               ylab = "BIN Richness")
+### The curve shows a steep initial increase in BIN richness with increasing individual sampling. Importantly, the continued upward trend suggests that additional sampling may reveal some unsampled BINs.
+
+# b) "As we add countries, do we add a lot of new BINs? i.e. Do unique BINs tend to be added as we sample additional countries?"
 
 dfBINs.by.country <- dfBOLD_no_unrec %>%
-  rename(country_ocean = `country/ocean`) |> # also renaming country/ocean for ease of use
   group_by(country_ocean, bin_uri) %>%
   count(bin_uri)
 # removing the rows where country is NA, and BIN is NA as such records do not contribute to answering our question.
+
 dfBINs.by.country.na.rm <- dfBINs.by.country %>%
   filter(!is.na(country_ocean)) %>%
   filter(!is.na(bin_uri))
+
 # Reshaping data to match desired data type and formatting once more
 dfBINs.spread.by.country <- pivot_wider(data = dfBINs.by.country.na.rm, names_from = bin_uri, values_from = n)
+
 # turn nas to 0 but are there any nas?
+# You can first check if there is any missing value
+any(is.na(dfBINs.spread.by.country)) #==> This returns TRUE
+
+# Turns NAs to 0
 dfBINs.spread.by.country[is.na(dfBINs.spread.by.country)] <- 0
 
 # setting the rownames as country, rather than having country as a data column. 
 dfBINs.spread.by.country <- dfBINs.spread.by.country %>%
   remove_rownames() %>%
   column_to_rownames(var = "country_ocean")
-# plotting curve
+
+# Let's build the Species Acculmulation Curve
 AccumCurve <- specaccum(dfBINs.spread.by.country)
 
+# plotting the curve
 plot(AccumCurve, xlab = "Countries Sampled", ylab = "BIN Richness", ci.type = "poly", col = "red", lwd = 2, ci.lty = 0, ci.col = "yellow")
 
 AccumCurveboxpl <- specaccum(dfBINs.spread.by.country, "random")
@@ -153,6 +228,134 @@ boxplot(AccumCurveboxpl, col = "orange", add = TRUE, pch = "+")
 
 pool_estimate <- specpool(dfBINs.spread.by.country)
 pool_estimate
+#==> Chao estimate predicts 39 BINs, while observed BINs are 24. So, approximately 15 more BINs still need to be detected.
+
 completeness <- pool_estimate$Species / pool_estimate$chao * 100
 completeness
+#==> This returns a moderate coverage ~62%. 
+
+### Let's visualize these findings
+# Create data to be visualized
+df.BIN.richness <- data_frame(
+  Metric = c("Observed BINs", "Estimated BINs"),
+  Value = c(pool_estimate$Species, pool_estimate$chao)
+)
+
+# Let's make a plot
+ggplot(df.BIN.richness, aes(x = Metric, y = Value, fill = Metric)) +
+  geom_bar(stat = "identity", width = 0.6) +
+  labs(
+    title = "Observed vs. Estimated BIN richness in Canidae samples",
+    y = "BIN richness",
+    x = NULL
+  )
+
+# c) Alpha diversity ------------
+# Rarefaction and Species Accumulation Curve helped check the quality and completeness of our data. We need to understand the true diversity pattern across countries, alpha-diversity. Shannon and Simpson diversity will calculate how diverse each country is and how BINs are evenly distributed. This will show a clear diversity beyond simple species count. Additionally, simpson diversity will demonstrate how balanced species representation is. 
+
+# We need a dataset containing two variables: countries, BINs
+
+# Let's check some statistics
+table(dfBINs.by.country$country_ocean)
+unique(dfBINs.by.country$bin_uri)
+length(unique(dfBINs.by.country$bin_uri))
+
+# Shannon index. will use BINs as a molecukar proxy of species. The argument .groups = "drop" tells R not to keep grouping after summarization.
+
+dfBINs.by.country_diversity <- dfBINs.by.country %>% 
+  filter(!is.na(country_ocean) & !is.na(bin_uri)) %>% 
+  group_by(country_ocean, bin_uri) %>% 
+  summarize(count = n(), .groups = "drop") %>% 
+  group_by(country_ocean) %>% 
+  summarize(
+    shannon = diversity(count, index = "shannon"),
+    simpson = diversity(count, index = "simpson")) %>%
+  arrange(desc(shannon)) %>%
+  print()
+#==> Findings show that both shannon and simpson indices reveal Canidae diversity is geographically uneven with a high diversity concentrated in a few countries, while many countries remain poorly represented. 
+
+# Let's visualize the shannon diversity
+ggplot(data = dfBINs.by.country_diversity) +
+  geom_point(mapping = aes(x = fct_reorder(country_ocean, shannon), y = shannon),  size = 3) +
+  labs(title = "Shannon diversity of Canidae across countries", x = "Country sampled", y = "Shannon Diversity Index ") +
+  coord_flip()
+#==> The pattern of shannon diversity underscores the need for a broader geographic sampling for an accurate estimate of Canidae diversity and distribution. Many country with o diversity have very few or only 1 record in BOLD.
+
+# Let's visualize both
+# Reshape the diversity data using pivot_long(), because ggplot2 needs data in long format to make group comparison
+df.diversity.plot <- dfBINs.by.country_diversity %>% 
+  pivot_longer(cols = c(shannon, simpson),
+               names_to = "Index",
+               values_to = "Diversity")
+
+# Let's plot a comparison between shannon and simpson diversity acros countries
+ggplot(df.diversity.plot, aes(x = reorder(country_ocean, -Diversity),
+                              y = Diversity, fill = Index)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  scale_fill_manual(values = c("steelblue", "tomato"),
+                    name = "Alpha-diversity index") +
+  labs(title = "Shannon and Simpson diversity by country",
+       subtitle = "Bars show average alpha diversity per country",
+       x = "Country", y = "Diversity value") +
+  coord_flip()
+# The plot show clearly many countries with 0 diversity (Shannon and Simpson). You can show the top 10 countries but what is needed here is a global picture of alpha-diversity for each country. You can conclude that Canidae diversity is unevenly distributed globally.
+
+# d) Statistical analysis of Canidae biodiversity ---------
+# To understand if the differences are due to sampling effort or true ecological variation, we can do some statistical analyses. We will need to group data by country and then summarize the number specimens and unique BINs (BIN-richness) per each country. This will help compare the sampling effort and diversity.
+
+# Let's make a new data set containing processid (n), country_ocean (countries), and bin_uri (BIN). dfBOLD still has unrecoverable observation that we need to exclude first.
+dfBOLD.sub2 <- dfBOLD %>% 
+  filter(country_ocean != "Unrecoverable") %>% 
+  select(country_ocean, processid, bin_uri) %>%
+  filter(!is.na(country_ocean) & !is.na(bin_uri))
+
+# We need to compare sampling effort and diversity
+dfBOLD.sub2.by.country.BINs <- dfBOLD.sub2 %>% 
+  group_by(country_ocean) %>% 
+  summarise(n = n(), BIN_richness = length(unique(bin_uri))) %>% 
+  arrange(desc(BIN_richness)) %>% 
+  print()
+#==> This give us each country with a number of specimens and how many unique BINs are in those specimens. Some contries a high number of samples with a few unique BINs, like United States having 227 specimens with only 4 unique BINs, while country like China has 4 unique BINs in just 4 specimens. So we can can test whether genetic diversity (BIN-richness) differs significantly among countries or whether it depends on sampling effort.
+
+# Before any statistical analysis, let's check if data are normally distributed
+
+# Histogram for n_records (sampling effort)
+hist(dfBOLD.sub2.by.country.BINs$n, main = "Histogram presentation of sampling effort", xlab = "n_records", col = "lightblue")
+# Or let's use density plot to see well the skewness of the data
+ggplot(data = dfBOLD.sub2.by.country.BINs) +
+  geom_density(mapping = aes(x = n, fill = "tomato")) +
+  labs(title = "Density plot of sampling effort", x = "Sampling effort")
+#==> Not normally distributed
+
+# Let's confirm normality using a statistical test, Shapiro-Wilk normality test
+
+shapiro.test(dfBOLD.sub2.by.country.BINs$n)
+
+#==> Both BIN richness and sampling effort are statistically deviated from normality (p < 0.05). Non-parametric tests are preferred.
+
+# Spearman correlation (non-parametric) will explain if observed diversity is strongly driven by sampling effort or biological patterns. The question is: Does sampling effort drive the observed BIN richness?
+Spearman_cor <- cor.test(dfBOLD.sub2.by.country.BINs$BIN_richness, dfBOLD.sub2.by.country.BINs$n, method = "spearman")
+Spearman_cor
+#==> This return spearman rho = 0.459, p = 6.537e-05. This is a significant moderate positive correlation.
+### The uneven distribution of Canidae shown by alpha-diversity across countries is partially explained by sampling effort because biological differences may also play a role.
+
+# To avoid any misleading p-value due to countries with almost 0 data, let's filter n_records (sampling effort >= 3). We do not need to filter BIN richness because it's what we are trying to compare.
+fBOLD.sub2.by.country.BINs.filtered <- dfBOLD.sub2.by.country.BINs %>% 
+  filter(n >= 3)
+
+# Spearman correlation test on filtered data set will help make a conclusion to our question: Does sampling effort drive the observed BIN richness? 
+Spearman_cor2 <- cor.test(fBOLD.sub2.by.country.BINs.filtered$BIN_richness, fBOLD.sub2.by.country.BINs.filtered$n, method = "spearman")
+Spearman_cor2
+#==> This return spearman rho = 0.213, p = 0.1654. This is a non-significant weak positive correlation. The uneven diversity is real.
+### The significant correlation in Spearman_cor (incling even poorly sampled countries) was partly driven by noise from extremely undersampled countries. Therefore, Uneven distribution of Canidae diversity is not primarily due to sampling bias; however it's likely driven by ecological variation.
+
+# Let's visualize scater plot of the relationship between sampling effort and diversity with a non-linear patterns. The argument method = "loess" is for a flexible curve of non-linear patterns.
+ggplot(fBOLD.sub2.by.country.BINs.filtered, aes(x = n, y= BIN_richness)) +
+  geom_point(size = 3, color = "skyblue", alpha = 0.8) +
+  geom_smooth(method = "loess", se = FALSE, color = "red") + 
+  labs(title = "Relationship between sampling effort and BIN-richness",
+       subtitle = "Trend line of Spearman correlation",
+       x = "Sampling effort", y = "BIN richness")
+
+#==> The figure demonstrates possible sampling bias, confirming that BIN richness does not simply increase with sample size.
 ####END
