@@ -300,6 +300,62 @@ ggplot(df.diversity.plot, aes(x = reorder(country_ocean, -Diversity),
   coord_flip()
 # The plot show clearly many countries with 0 diversity (Shannon and Simpson). You can show the top 10 countries but what is needed here is a global picture of alpha-diversity for each country. You can conclude that Canidae diversity is unevenly distributed globally.
 
-  
+# d) Statistical analysis of Canidae biodiversity ---------
+# To understand if the differences are due to sampling effort or true ecological variation, we can do some statistical analyses. We will need to group data by country and then summarize the number specimens and unique BINs (BIN-richness) per each country. This will help compare the sampling effort and diversity.
 
+# Let's make a new data set containing processid (n), country_ocean (countries), and bin_uri (BIN). dfBOLD still has unrecoverable observation that we need to exclude first.
+dfBOLD.sub2 <- dfBOLD %>% 
+  filter(country_ocean != "Unrecoverable") %>% 
+  select(country_ocean, processid, bin_uri) %>%
+  filter(!is.na(country_ocean) & !is.na(bin_uri))
+
+# We need to compare sampling effort and diversity
+dfBOLD.sub2.by.country.BINs <- dfBOLD.sub2 %>% 
+  group_by(country_ocean) %>% 
+  summarise(n = n(), BIN_richness = length(unique(bin_uri))) %>% 
+  arrange(desc(BIN_richness)) %>% 
+  print()
+#==> This give us each country with a number of specimens and how many unique BINs are in those specimens. Some contries a high number of samples with a few unique BINs, like United States having 227 specimens with only 4 unique BINs, while country like China has 4 unique BINs in just 4 specimens. So we can can test whether genetic diversity (BIN-richness) differs significantly among countries or whether it depends on sampling effort.
+
+# Before any statistical analysis, let's check if data are normally distributed
+
+# Histogram for n_records (sampling effort)
+hist(dfBOLD.sub2.by.country.BINs$n, main = "Histogram presentation of sampling effort", xlab = "n_records", col = "lightblue")
+# Or let's use density plot to see well the skewness of the data
+ggplot(data = dfBOLD.sub2.by.country.BINs) +
+  geom_density(mapping = aes(x = n, fill = "tomato")) +
+  labs(title = "Density plot of sampling effort", x = "Sampling effort")
+#==> Not normally distributed
+
+# Let's confirm normality using a statistical test, Shapiro-Wilk normality test
+
+shapiro.test(dfBOLD.sub2.by.country.BINs$n)
+
+#==> Both BIN richness and sampling effort are statistically deviated from normality (p < 0.05). Non-parametric tests are preferred.
+
+# Spearman correlation (non-parametric) will explain if observed diversity is strongly driven by sampling effort or biological patterns. The question is: Does sampling effort drive the observed BIN richness?
+Spearman_cor <- cor.test(dfBOLD.sub2.by.country.BINs$BIN_richness, dfBOLD.sub2.by.country.BINs$n, method = "spearman")
+Spearman_cor
+#==> This return spearman rho = 0.459, p = 6.537e-05. This is a significant moderate positive correlation.
+### The uneven distribution of Canidae shown by alpha-diversity across countries is partially explained by sampling effort because biological differences may also play a role.
+
+# To avoid any misleading p-value due to countries with almost 0 data, let's filter n_records (sampling effort >= 3). We do not need to filter BIN richness because it's what we are trying to compare.
+fBOLD.sub2.by.country.BINs.filtered <- dfBOLD.sub2.by.country.BINs %>% 
+  filter(n >= 3)
+
+# Spearman correlation test on filtered data set will help make a conclusion to our question: Does sampling effort drive the observed BIN richness? 
+Spearman_cor2 <- cor.test(fBOLD.sub2.by.country.BINs.filtered$BIN_richness, fBOLD.sub2.by.country.BINs.filtered$n, method = "spearman")
+Spearman_cor2
+#==> This return spearman rho = 0.213, p = 0.1654. This is a non-significant weak positive correlation. The uneven diversity is real.
+### The significant correlation in Spearman_cor (incling even poorly sampled countries) was partly driven by noise from extremely undersampled countries. Therefore, Uneven distribution of Canidae diversity is not primarily due to sampling bias; however it's likely driven by ecological variation.
+
+# Let's visualize scater plot of the relationship between sampling effort and diversity with a non-linear patterns. The argument method = "loess" is for a flexible curve of non-linear patterns.
+ggplot(fBOLD.sub2.by.country.BINs.filtered, aes(x = n, y= BIN_richness)) +
+  geom_point(size = 3, color = "skyblue", alpha = 0.8) +
+  geom_smooth(method = "loess", se = FALSE, color = "red") + 
+  labs(title = "Relationship between sampling effort and BIN-richness",
+       subtitle = "Trend line of Spearman correlation",
+       x = "Sampling effort", y = "BIN richness")
+
+#==> The figure demonstrates possible sampling bias, confirming that BIN richness does not simply increase with sample size.
 ####END
